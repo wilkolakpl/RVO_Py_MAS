@@ -69,7 +69,7 @@ def RVO_update(robots, ws_model):
         for other_robot in robots:
             if robot != other_robot:
                 RVO_BA = calc_RVO(robot.pose[:2], other_robot.pose[:2],
-                                  robot.velocity, other_robot.velocity,
+                                  robot.velocity, other_robot.prev_vel,
                                   ROB_RAD)
                 RVO_BA_all.append(RVO_BA)
         # for hole in ws_model['circular_obstacles']:
@@ -96,6 +96,19 @@ def RVO_update(robots, ws_model):
         robot.velocity = vA_post[:]
 
 
+def verify_vel_outside_obstacles(posA, new_velA, RVO_BA_all):
+    for RVO_BA in RVO_BA_all:
+        p_0 = RVO_BA[0]
+        theta_left = RVO_BA[1]
+        theta_right = RVO_BA[2]
+        dif = [new_velA[X] + posA[X] - p_0[X],
+               new_velA[Y] + posA[Y] - p_0[Y]]
+        theta_dif = atan2(dif[Y], dif[X])
+        if is_in_between(theta_right, theta_dif, theta_left):
+            return False
+    return True
+
+
 def intersect(pA, vA, RVO_BA_all):
     # print '----------------------------------------'
     # print 'Start intersection test'
@@ -105,48 +118,23 @@ def intersect(pA, vA, RVO_BA_all):
     for theta in numpy.arange(0, 2*PI, 0.1):
         for rad in numpy.arange(0.02, norm_v+0.02, norm_v/5.0):
             new_v = [rad*cos(theta), rad*sin(theta)]
-            suit = True
-            for RVO_BA in RVO_BA_all:
-                p_0 = RVO_BA[0]
-                theta_left = RVO_BA[1]
-                theta_right = RVO_BA[2]
-                dif = [new_v[0]+pA[0]-p_0[0], new_v[1]+pA[1]-p_0[1]]
-                theta_dif = atan2(dif[1], dif[0])
-                if is_in_between(theta_right, theta_dif, theta_left):
-                    suit = False
-                    break
-            if suit:
+
+            if verify_vel_outside_obstacles(pA, new_v, RVO_BA_all):
                 suitable_V.append(new_v)
             else:
                 unsuitable_V.append(new_v)
-    new_v = vA[:]
-    suit = True
-    for RVO_BA in RVO_BA_all:
-        p_0 = RVO_BA[0]
-        theta_left = RVO_BA[1]
-        theta_right = RVO_BA[2]
-        dif = [new_v[0]+pA[0]-p_0[0], new_v[1]+pA[1]-p_0[1]]
-        theta_dif = atan2(dif[1], dif[0])
-        if is_in_between(theta_right, theta_dif, theta_left):
-            suit = False
-            break
-    if suit:
-        suitable_V.append(new_v)
+
+    if verify_vel_outside_obstacles(pA, vA, RVO_BA_all):
+        suitable_V.append(vA)
     else:
-        unsuitable_V.append(new_v)
+        unsuitable_V.append(vA)
+
     # ----------------------
     if suitable_V:
         # print 'Suitable found'
         vA_post = min(suitable_V, key=lambda v: calc_distance(v, vA))
-        new_v = vA_post[:]
-        for RVO_BA in RVO_BA_all:
-            p_0 = RVO_BA[0]
-            theta_left = RVO_BA[1]
-            theta_right = RVO_BA[2]
-            dif = [new_v[0]+pA[0]-p_0[0], new_v[1]+pA[1]-p_0[1]]
-            theta_dif = atan2(dif[1], dif[0])
     else:
-        # print 'Suitable not found'
+        # print('Suitable not found')
         tc_V = dict()
         for unsuit_v in unsuitable_V:
             tc_V[tuple(unsuit_v)] = 0

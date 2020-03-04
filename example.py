@@ -25,9 +25,9 @@ ws_model['boundary'] = []
 # initialization for robot
 # position of [x,y]
 pos = [[-0.5+1.0*i, 0.0]
-       for i in range(1)] + [[-0.5+1.0*i, 5.0] for i in range(1)]
+       for i in range(7)] + [[-0.5+1.0*i, 5.0] for i in range(7)]
 
-theta = [np.pi/2 for i in range(1)] + [-np.pi/2 for i in range(1)]
+theta = [np.pi/2 for i in range(7)] + [-np.pi/2 for i in range(7)]
 
 theta_max = [np.pi/32 for i in range(len(pos))]
 # velocity of [vx,vy]
@@ -36,13 +36,14 @@ V = [[0, 0] for i in range(len(pos))]
 V_max = [1.0 for i in range(len(pos))]
 # goal of [x,y]
 goal = [[5.5-1.0*i, 5.0]
-        for i in range(1)] + [[5.5-1.0*i, 0.0] for i in range(1)]
+        for i in range(7)] + [[5.5-1.0*i, 0.0] for i in range(7)]
 
 
 class Robot:
     def __init__(self, pose, velocity, goal, v_max, theta_max):
         self.pose = pose
         self.velocity = velocity
+        self.prev_vel = velocity
         self.goal = goal
         self.v_max = v_max
         self.theta_max = theta_max
@@ -82,6 +83,9 @@ viz = Visualizer()
 # simulation starts
 t = 0
 while t*step < total_time:
+
+    for robot in robots:
+        robot.prev_vel = robot.velocity
 
     RVO_update(robots, ws_model)
 
