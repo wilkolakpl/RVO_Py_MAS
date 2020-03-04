@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 
-from RVO import RVO_update, compute_V_des
+from RVO import RVO_update, calc_distance
 from vis import Visualizer
 
 X = 0
@@ -47,6 +47,22 @@ class Robot:
         self.v_max = v_max
         self.theta_max = theta_max
 
+    def compute_V_des(self):
+        if self.reached_goal(0.1):
+            return [0, 0]
+
+        dif_x = [self.goal[X]-self.pose[X],
+                 self.goal[Y]-self.pose[Y]]
+        norm = calc_distance(dif_x, [0, 0])
+        return [dif_x[X] * self.v_max / norm,
+                dif_x[Y] * self.v_max / norm]
+
+    def reached_goal(self, bound=0.5):
+        if calc_distance(self.pose[:2], self.goal) < bound:
+            return True
+        else:
+            return False
+
 
 robots = []
 for i in range(len(pos)):
@@ -66,11 +82,9 @@ viz = Visualizer()
 # simulation starts
 t = 0
 while t*step < total_time:
-    # compute desired vel to goal
-    V_des = compute_V_des(pos, goal, V_max)
-    # compute the optimal vel to avoid collision
-    V = RVO_update(pos, V_des, V, ws_model)
-    # update position
+
+    RVO_update(robots, ws_model)
+
     for i, robot in enumerate(robots):
 
         # Respect the non-holonomic constraints using http://www.alonsomora.com/docs/10-alonsomora.pdf
@@ -96,13 +110,8 @@ while t*step < total_time:
         # V[i][X] = v_star * np.cos(robot.pose[YAW])
         # V[i][Y] = v_star * np.sin(robot.pose[YAW])
 
-        pos[i][X] += V[i][X]*step
-        pos[i][Y] += V[i][Y]*step
-
-        robot.velocity[X] = V[i][X]
-        robot.velocity[Y] = V[i][Y]
-        robot.pose[X] += V[i][0]*step
-        robot.pose[Y] += V[i][1]*step
+        robot.pose[X] += robot.velocity[X] * step
+        robot.pose[Y] += robot.velocity[Y] * step
 
         # while robot.pose[YAW] < -np.pi:
         #     robot.pose[YAW] += 2*np.pi

@@ -60,44 +60,40 @@ def calc_RVO(posA, posB, velA, velB, rob_rad):
     return center, left_angle, right_angle, dist_BA, rad
 
 
-def RVO_update(X, V_des, V_current, ws_model):
+def RVO_update(robots, ws_model):
     """ compute best velocity given the desired velocity, current velocity and workspace model"""
     ROB_RAD = ws_model['robot_radius']+0.1
-    V_opt = list(V_current)
-    for i in range(len(X)):
-        vA = [V_current[i][0], V_current[i][1]]
-        pA = [X[i][0], X[i][1]]
-        RVO_BA_all = []
-        for j in range(len(X)):
-            if i != j:
-                vB = [V_current[j][0], V_current[j][1]]
-                pB = [X[j][0], X[j][1]]
 
-                RVO_BA = calc_RVO(pA, pB, vA, vB, ROB_RAD)
+    for robot in robots:
+        RVO_BA_all = []
+        for other_robot in robots:
+            if robot != other_robot:
+                RVO_BA = calc_RVO(robot.pose[:2], other_robot.pose[:2],
+                                  robot.velocity, other_robot.velocity,
+                                  ROB_RAD)
                 RVO_BA_all.append(RVO_BA)
-        for hole in ws_model['circular_obstacles']:
-            # hole = [x, y, rad]
-            vB = [0, 0]
-            pB = hole[0:2]
-            transl_vB_vA = [pA[0]+vB[0], pA[1]+vB[1]]
-            dist_BA = calc_distance(pA, pB)
-            theta_BA = atan2(pB[1]-pA[1], pB[0]-pA[0])
-            # over-approximation of square to circular
-            OVER_APPROX_C2S = 1.5
-            rad = hole[2]*OVER_APPROX_C2S
-            if (rad+ROB_RAD) > dist_BA:
-                dist_BA = rad+ROB_RAD
-            theta_BAort = asin((rad+ROB_RAD)/dist_BA)
-            theta_ort_left = theta_BA+theta_BAort
-            bound_left = [cos(theta_ort_left), sin(theta_ort_left)]
-            theta_ort_right = theta_BA-theta_BAort
-            bound_right = [cos(theta_ort_right), sin(theta_ort_right)]
-            RVO_BA = [transl_vB_vA, bound_left,
-                      bound_right, dist_BA, rad+ROB_RAD]
-            RVO_BA_all.append(RVO_BA)
-        vA_post = intersect(pA, V_des[i], RVO_BA_all)
-        V_opt[i] = vA_post[:]
-    return V_opt
+        # for hole in ws_model['circular_obstacles']:
+        #     # hole = [x, y, rad]
+        #     vB = [0, 0]
+        #     pB = hole[0:2]
+        #     transl_vB_vA = [pA[0]+vB[0], pA[1]+vB[1]]
+        #     dist_BA = calc_distance(pA, pB)
+        #     theta_BA = atan2(pB[1]-pA[1], pB[0]-pA[0])
+        #     # over-approximation of square to circular
+        #     OVER_APPROX_C2S = 1.5
+        #     rad = hole[2]*OVER_APPROX_C2S
+        #     if (rad+ROB_RAD) > dist_BA:
+        #         dist_BA = rad+ROB_RAD
+        #     theta_BAort = asin((rad+ROB_RAD)/dist_BA)
+        #     theta_ort_left = theta_BA+theta_BAort
+        #     bound_left = [cos(theta_ort_left), sin(theta_ort_left)]
+        #     theta_ort_right = theta_BA-theta_BAort
+        #     bound_right = [cos(theta_ort_right), sin(theta_ort_right)]
+        #     RVO_BA = [transl_vB_vA, bound_left,
+        #               bound_right, dist_BA, rad+ROB_RAD]
+        #     RVO_BA_all.append(RVO_BA)
+        vA_post = intersect(robot.pose[:2], robot.compute_V_des(), RVO_BA_all)
+        robot.velocity = vA_post[:]
 
 
 def intersect(pA, vA, RVO_BA_all):
@@ -179,23 +175,3 @@ def intersect(pA, vA, RVO_BA_all):
         vA_post = min(unsuitable_V, key=lambda v: (
             (WT/tc_V[tuple(v)])+calc_distance(v, vA)))
     return vA_post
-
-
-def compute_V_des(X, goal, V_max):
-    V_des = []
-    for i in range(len(X)):
-        dif_x = [goal[i][k]-X[i][k] for k in range(2)]
-        norm = calc_distance(dif_x, [0, 0])
-        norm_dif_x = [dif_x[k]*V_max[k]/norm for k in range(2)]
-        V_des.append(norm_dif_x[:])
-        if reached(X[i], goal[i], 0.1):
-            V_des[i][0] = 0
-            V_des[i][1] = 0
-    return V_des
-
-
-def reached(p1, p2, bound=0.5):
-    if calc_distance(p1, p2) < bound:
-        return True
-    else:
-        return False
