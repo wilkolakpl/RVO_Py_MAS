@@ -1,68 +1,152 @@
 #!/usr/bin/env python
 import matplotlib
-import matplotlib.pyplot as pyplot
+import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
 from matplotlib.patches import Polygon
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
+import numpy as np
 
 from math import pi as PI
 from math import atan2, sin, cos, sqrt
 
+plt.ion()
+
+X = 0
+Y = 1
+YAW = 2
 
 
-def visualize_traj_dynamic(ws_model, X, U, goal, time = None, name=None):
-    figure = pyplot.figure()
-    ax = figure.add_subplot(1,1,1)
-    cmap = get_cmap(len(X))
-    # plot obstacles
-    for hole in ws_model['circular_obstacles']:
-        srec = matplotlib.patches.Rectangle(
+class Visualizer:
+    def __init__(self):
+        self.figure = None
+        self.ax = None
+
+    def _get_cmap(self, N):
+        '''Returns a function that maps each index in 0, 1, ... N-1 to a distinct RGB color.'''
+        color_norm = colors.Normalize(vmin=0, vmax=N-1)
+        scalar_map = cmx.ScalarMappable(norm=color_norm, cmap='hsv')
+
+        def map_index_to_rgb_color(index):
+            return scalar_map.to_rgba(index)
+        return map_index_to_rgb_color
+
+    def initialize(self, ws_model, robots):
+        self.figure = plt.figure(figsize=(8, 8))
+        plt.show(block=False)
+
+        self.ax = self.figure.add_subplot(111)
+        self.ax.set_aspect('equal')
+        self.ax.set_xlim(-1.0, 6.0)
+        self.ax.set_ylim(-1.0, 6.0)
+        self.ax.set_xlabel(r'$x (m)$')
+        self.ax.set_ylabel(r'$y (m)$')
+        self.ax.grid(True)
+
+        self.cmap = self._get_cmap(len(robots))
+
+        self.clock = self.ax.text(2, 5.5, '$t=%.1f s$' % 0,
+                                  fontsize=20, fontweight='bold')
+
+        self.robot_pts = []
+        self.history_x = []
+        self.history_y = []
+        self.path = []
+        self.labels = []
+        self.arrows = []
+        for i, robot in enumerate(robots):
+            # PLOT ROBOTS
+            robot_pt = matplotlib.patches.Wedge(
+                (robot.pose[X], robot.pose[Y]),
+                ws_model['robot_radius'],
+                np.degrees(robot.pose[YAW]) + 30,
+                np.degrees(robot.pose[YAW]) - 30,
+                facecolor=self.cmap(i),
+                edgecolor='black',
+                linewidth=1.0,
+                ls='solid',
+                alpha=1,
+                zorder=2)
+            self.ax.add_patch(robot_pt)
+            self.robot_pts.append(robot_pt)
+
+            # PLOT ROBOT PATHS
+            self.path.append(self.ax.plot([], [], color=self.cmap(i))[0])
+            self.history_x.append([])
+            self.history_y.append([])
+            self.history_x[i].append(robot.pose[X])
+            self.history_y[i].append(robot.pose[Y])
+            self.path[i].set_data(self.history_x[i], self.history_y[i])
+
+            # PLOT ROBOT LABELS
+            label = self.ax.text(robot.pose[X]-0.1, robot.pose[Y]-0.1, r'$%s$' %
+                                 i, fontsize=15, fontweight='bold', zorder=3)
+            self.labels.append(label)
+
+            # PLOT ROBOT VELOCITIES
+            arrowstyle = matplotlib.patches.ArrowStyle.Simple(
+                head_length=0.2,
+                head_width=0.2,
+                tail_width=0.1)
+            arrow = matplotlib.patches.FancyArrowPatch(
+                (robot.pose[X], robot.pose[Y]),
+                (robot.pose[X]+robot.velocity[X],
+                 robot.pose[Y]+robot.velocity[Y]),
+                color=self.cmap(i))
+            arrow.set_arrowstyle("fancy", head_length=10, head_width=5)
+            self.ax.add_patch(arrow)
+            self.arrows.append(arrow)
+
+            # PLOT ROBOT GOALS
+            self.ax.plot(
+                [robot.goal[X]],
+                [robot.goal[Y]],
+                '*',
+                color=self.cmap(i),
+                markersize=15)
+
+        # PLOT OBSTACLES
+        for hole in ws_model['circular_obstacles']:
+            srec = matplotlib.patches.Rectangle(
                 (hole[0]-hole[2], hole[1]-hole[2]),
                 2*hole[2], 2*hole[2],
-                facecolor= 'red',
-                fill = True,
+                facecolor='red',
+                fill=True,
                 alpha=1)
-        ax.add_patch(srec)
-    # ---plot traj---
-    for i in range(0,len(X)):
-        #-------plot car
-        robot = matplotlib.patches.Circle(
-            (X[i][0],X[i][1]),
-            radius = ws_model['robot_radius'],
-            facecolor=cmap(i),
-            edgecolor='black',
-            linewidth=1.0,
-            ls='solid',
-            alpha=1,
-            zorder=2)
-        ax.add_patch(robot)
-        #----------plot velocity
-        ax.arrow(X[i][0], X[i][1], U[i][0], U[i][1], head_width=0.05, head_length=0.1, fc=cmap(i), ec=cmap(i))
-        ax.text(X[i][0]-0.1, X[i][1]-0.1, r'$%s$' %i, fontsize=15, fontweight = 'bold',zorder=3)
-        ax.plot([goal[i][0]], [goal[i][1]], '*', color=cmap(i), markersize =15,linewidth=3.0)
-    if time:
-        ax.text(2,5.5,'$t=%.1f s$' %time,
-                fontsize=20, fontweight ='bold')                
-    # ---set axes ---
-    ax.set_aspect('equal')
-    ax.set_xlim(-1.0, 6.0)
-    ax.set_ylim(-1.0, 6.0)
-    ax.set_xlabel(r'$x (m)$')
-    ax.set_ylabel(r'$y (m)$')
-    ax.grid(True)
-    if name:
-        pyplot.savefig(name, dpi = 200)
-        #pyplot.savefig(name,bbox_inches='tight')
-    pyplot.cla()
-    pyplot.close(figure)
-    return figure
+            self.ax.add_patch(srec)
 
-def get_cmap(N):
-    '''Returns a function that maps each index in 0, 1, ... N-1 to a distinct RGB color.'''
-    color_norm  = colors.Normalize(vmin=0, vmax=N-1)
-    scalar_map = cmx.ScalarMappable(norm=color_norm, cmap='hsv') 
-    def map_index_to_rgb_color(index):
-        return scalar_map.to_rgba(index)
-    return map_index_to_rgb_color    
+    def visualize(self, ws_model, robots, time=None, name=None):
+        if not self.figure:
+            self.initialize(ws_model, robots)
+
+        for i, robot in enumerate(robots):
+            # PLOT ROBOTS
+            self.robot_pts[i].set_center((robot.pose[X], robot.pose[Y]))
+            self.robot_pts[i].set_theta1(np.degrees(robot.pose[YAW]) + 30)
+            self.robot_pts[i].set_theta2(np.degrees(robot.pose[YAW]) - 30)
+
+            # PLOT ROBOT PATHS
+            self.history_x[i].append(robot.pose[X])
+            self.history_y[i].append(robot.pose[Y])
+            self.path[i].set_data(self.history_x[i], self.history_y[i])
+
+            # PLOT ROBOT LABELS
+            self.labels[i].set_position((robot.pose[X]-0.1, robot.pose[Y]-0.1))
+
+            # PLOT ROBOT VELOCITIES
+            self.arrows[i].set_positions(
+                (robot.pose[X], robot.pose[Y]),
+                (robot.pose[X]+robot.velocity[X],
+                 robot.pose[Y]+robot.velocity[Y])
+            )
+
+        # SHOW CURRENT TIME
+        if time:
+            self.clock.set_text('$t=%.1f s$' % time)
+
+        self.figure.canvas.draw_idle()
+        plt.pause(0.0001)
+
+        if name:
+            plt.savefig(name, dpi=200)
