@@ -22,9 +22,9 @@ poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2],
 
 goals = [[2.5, 5.0], [2.5, 0.0], [5.0, 2.5], [0.0, 2.5]]
 
-poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2]]
+# poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2]]
 
-goals = [[2.5, 5.0], [2.5, 0.0]]
+# goals = [[2.5, 5.0], [2.5, 0.0]]
 
 robots = []
 for i, (pose, goal) in enumerate(zip(poses, goals)):
@@ -48,13 +48,13 @@ t = 0
 while t*step < total_time:
 
     for robot in robots:
-        robot.broadcast_velocity()
-
-    for robot in robots:
         robot.update_RVO_velocity(robots, circular_obstacles)
 
     for robot in robots:
         robot.update_pose(step)
+
+    for robot in robots:
+        robot.exchange_velocities(robots, step)
 
     if t % 20 == 0:
         viz.visualize(robots, time=t*step)

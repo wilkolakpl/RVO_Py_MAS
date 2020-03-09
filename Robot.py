@@ -1,5 +1,6 @@
 import numpy as np
 from math import cos, sin, atan2, pi
+from collections import defaultdict
 from trig import calc_distance, is_in_between, calc_RVO, \
     verify_vel_outside_obstacles, compute_distance_to_cone_edge
 
@@ -7,6 +8,8 @@ from trig import calc_distance, is_in_between, calc_RVO, \
 X = 0
 Y = 1
 YAW = 2
+
+DETECTION_DISTANCE = 3
 
 
 class Robot:
@@ -16,10 +19,12 @@ class Robot:
                  v_max=1,
                  theta_max=pi/16,
                  robot_radius=0.2,
-                 mischevious=False):
+                 mischevious=False,
+                 vel_det_method="broadcast"):
         self._pose = pose
         self._velocity = velocity
         self._reversing = reversing
+        self._vel_det_method = vel_det_method
 
         self._v_max = v_max
         self._theta_max = theta_max
@@ -28,32 +33,8 @@ class Robot:
         self._goal = goal
 
         self._mischevious = mischevious
-        self._broadcasted_velocity = velocity
-
-    def broadcast_velocity(self):
-        self._broadcasted_velocity = self._velocity
-
-    def get_velocity(self, other_robots_pose, other_robots_vel):
-        if self._mischevious:
-            # ROB_RAD = self._radius + 0.1
-            # center, _, _, _, _ = calc_RVO(
-            #     self._pose[:2], other_robots_pose[:2],
-            #     self._velocity, other_robots_vel,
-            #     ROB_RAD
-            # )
-
-            # difference = np.array(self._velocity) - np.array(center)
-            # return np.array(self._velocity) + difference
-
-            towards_other = [other_robots_pose[X] - self._pose[X],
-                             other_robots_pose[Y] - self._pose[Y]]
-            other_angle = atan2(towards_other[Y], towards_other[X])
-            towards_goal = self._compute_optimal_V()
-            goal_angle = atan2(towards_goal[Y], towards_goal[X])
-            angle = 0.5*(other_angle + goal_angle)
-            return [self._v_max * cos(other_angle), self._v_max * sin(other_angle)]
-        else:
-            return self._broadcasted_velocity
+        self._neighbor_vels = defaultdict(lambda: [0., 0.])
+        self._neighbor_poses = defaultdict(lambda: [0., 0.])
 
     def update_pose(self, step):
         self._pose[X] += self._velocity[X] * step
@@ -68,18 +49,45 @@ class Robot:
         else:
             self._pose[YAW] = new_YAW
 
+    def exchange_velocities(self, robots, step):
+        if self._vel_det_method == "broadcast":
+            for neighbor in robots:
+                if calc_distance(self._pose[:2],
+                                 neighbor._pose[:2]) < DETECTION_DISTANCE:
+                    if self._mischevious:
+                        towards_other = [neighbor._pose[X] - self._pose[X],
+                                         neighbor._pose[Y] - self._pose[Y]]
+                        other_angle = atan2(towards_other[Y], towards_other[X])
+                        towards_goal = self._compute_optimal_V()
+                        goal_angle = atan2(towards_goal[Y], towards_goal[X])
+                        angle = 0.5*(other_angle + goal_angle)
+                        neighbor._neighbor_vels[self] = [
+                            self._v_max * cos(other_angle), self._v_max * sin(other_angle)]
+                    else:
+                        neighbor._neighbor_vels[self] = self._velocity
+
+        elif self._vel_det_method == "inference":
+            for neighbor in robots:
+                if calc_distance(self._pose[:2],
+                                 neighbor._pose[:2]) < DETECTION_DISTANCE:
+                    past_pose = self._neighbor_poses[neighbor]
+                    curr_pose = neighbor._pose[:2]
+                    self._neighbor_vels[neighbor] = np.array(
+                        curr_pose) - np.array(past_pose)
+                    self._neighbor_vels[neighbor] = self._neighbor_vels[neighbor] / step
+
+                    self._neighbor_poses[neighbor] = curr_pose
+
     def update_RVO_velocity(self, robots, circular_obstacles):
 
         ROB_RAD = self._radius + 0.1
         RVO_BA_all = []
         for other_robot in robots:
-            if self != other_robot and calc_distance(self._pose[:2], other_robot._pose[:2]) < 3:
+            if self != other_robot and calc_distance(self._pose[:2],
+                                                     other_robot._pose[:2]) < DETECTION_DISTANCE:
                 RVO_BA = calc_RVO(
                     self._pose[:2], other_robot._pose[:2],
-                    self._velocity, other_robot.get_velocity(
-                        self._pose,
-                        self._velocity
-                    ),
+                    self._velocity, self._neighbor_vels[other_robot],
                     ROB_RAD
                 )
                 RVO_BA_all.append(RVO_BA)
@@ -127,11 +135,6 @@ class Robot:
                 else:
                     unsuitable_V.append((new_v, reversing))
 
-        # if verify_vel_outside_obstacles(robot.pose[:2], optimal_V, RVO_BA_all):
-        #     suitable_V.append(optimal_V)
-        # else:
-        #     unsuitable_V.append(optimal_V)
-
         if suitable_V:
             velA_updated = min(
                 suitable_V, key=lambda v: calc_distance(v[0], optimal_V))
@@ -144,6 +147,7 @@ class Robot:
                     center = RVO_BA[0]
                     theta_left, theta_right = RVO_BA[1], RVO_BA[2]
                     dist, rad = RVO_BA[3], RVO_BA[4]
+
                     dif = [unsuit_v[X] + self._pose[X] - center[X],
                            unsuit_v[Y] + self._pose[Y] - center[Y]]
                     theta_dif = atan2(dif[1], dif[0])
