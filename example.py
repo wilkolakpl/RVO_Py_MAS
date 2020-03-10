@@ -17,10 +17,10 @@ poses = [[-0.5+1.0*i, 0.0, np.pi/2] for i in range(7)] + \
 goals = [[5.5-1.0*i, 5.0] for i in range(7)] + \
         [[5.5-1.0*i, 0.0] for i in range(7)]
 
-poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2],
-         [0.0, 2.5, 0], [5.0, 2.5, np.pi]]
+# poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2],
+#          [0.0, 2.5, 0], [5.0, 2.5, np.pi]]
 
-goals = [[2.5, 5.0], [2.5, 0.0], [5.0, 2.5], [0.0, 2.5]]
+# goals = [[2.5, 5.0], [2.5, 0.0], [5.0, 2.5], [0.0, 2.5]]
 
 # poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2]]
 
@@ -56,8 +56,8 @@ while t*step < total_time:
     for robot in robots:
         robot.exchange_velocities(robots, step)
 
-    if t % 20 == 0:
-        viz.visualize(robots, time=t*step)
-    # name='data/snap%s.png' % str(t/10))
+    if t % 10 == 0:
+        viz.visualize(robots, time=t*step,
+                      name='data/snap%s.png' % str(t))
 
     t += 1

@@ -20,7 +20,7 @@ class Robot:
                  theta_max=pi/16,
                  robot_radius=0.2,
                  mischevious=False,
-                 vel_det_method="broadcast"):
+                 vel_det_method="inference"):
         self._pose = pose
         self._velocity = velocity
         self._reversing = reversing
@@ -62,7 +62,7 @@ class Robot:
                         goal_angle = atan2(towards_goal[Y], towards_goal[X])
                         angle = 0.5*(other_angle + goal_angle)
                         neighbor._neighbor_vels[self] = [
-                            self._v_max * cos(other_angle), self._v_max * sin(other_angle)]
+                            self._v_max * cos(angle), self._v_max * sin(angle)]
                     else:
                         neighbor._neighbor_vels[self] = self._velocity
 
@@ -158,7 +158,7 @@ class Robot:
                         tc.append(tc_v)
                 tc_V[tuple(unsuit_v)] = min(tc)+0.001
             velA_updated = min(unsuitable_V, key=lambda v:
-                               10 / tc_V[tuple(v[0])] +
+                               20 / tc_V[tuple(v[0])] +
                                calc_distance(v[0], optimal_V))
         return velA_updated
 
