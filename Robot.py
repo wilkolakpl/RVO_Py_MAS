@@ -19,8 +19,10 @@ class Robot:
                  v_max=1,
                  theta_max=pi/16,
                  robot_radius=0.2,
-                 mischevious=False,
-                 vel_det_method="inference"):
+                 selfish=False,
+                 blocking=True,
+                 vel_det_method="broadcast"):
+
         self._pose = pose
         self._velocity = velocity
         self._reversing = reversing
@@ -32,7 +34,8 @@ class Robot:
 
         self._goal = goal
 
-        self._mischevious = mischevious
+        self._selfish = selfish
+        self._blocking = blocking
         self._neighbor_vels = defaultdict(lambda: [0., 0.])
         self._neighbor_poses = defaultdict(lambda: [0., 0.])
 
@@ -54,7 +57,13 @@ class Robot:
             for neighbor in robots:
                 if calc_distance(self._pose[:2],
                                  neighbor._pose[:2]) < DETECTION_DISTANCE:
-                    if self._mischevious:
+
+                    if self._blocking:
+                        towards_goal = self._compute_optimal_V()
+                        neighbor._neighbor_vels[self] = [
+                            self._v_max * cos(self._pose[YAW]), self._v_max * sin(self._pose[YAW])]
+
+                    elif self._selfish:
                         towards_other = [neighbor._pose[X] - self._pose[X],
                                          neighbor._pose[Y] - self._pose[Y]]
                         other_angle = atan2(towards_other[Y], towards_other[X])
@@ -78,7 +87,7 @@ class Robot:
 
                     self._neighbor_poses[neighbor] = curr_pose
 
-    def update_RVO_velocity(self, robots, circular_obstacles):
+    def update_RVO_velocity(self, robots):
 
         ROB_RAD = self._radius + 0.1
         RVO_BA_all = []
@@ -91,26 +100,7 @@ class Robot:
                     ROB_RAD
                 )
                 RVO_BA_all.append(RVO_BA)
-        # for hole in ws_model['circular_obstacles']:
-        #     # hole = [x, y, rad]
-        #     vB = [0, 0]
-        #     pB = hole[0:2]
-        #     transl_vB_vA = [pA[0]+vB[0], pA[1]+vB[1]]
-        #     dist_BA = calc_distance(pA, pB)
-        #     theta_BA = atan2(pB[1]-pA[1], pB[0]-pA[0])
-        #     # over-approximation of square to circular
-        #     OVER_APPROX_C2S = 1.5
-        #     rad = hole[2]*OVER_APPROX_C2S
-        #     if (rad+ROB_RAD) > dist_BA:
-        #         dist_BA = rad+ROB_RAD
-        #     theta_BAort = asin((rad+ROB_RAD)/dist_BA)
-        #     theta_ort_left = theta_BA+theta_BAort
-        #     bound_left = [cos(theta_ort_left), sin(theta_ort_left)]
-        #     theta_ort_right = theta_BA-theta_BAort
-        #     bound_right = [cos(theta_ort_right), sin(theta_ort_right)]
-        #     RVO_BA = [transl_vB_vA, bound_left,
-        #               bound_right, dist_BA, rad+ROB_RAD]
-        #     RVO_BA_all.append(RVO_BA)
+
         self._velocity, self._reversing = self._intersect(RVO_BA_all)
 
     def _intersect(self, RVO_BA_all):

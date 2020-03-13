@@ -18,9 +18,8 @@ YAW = 2
 
 
 class Visualizer:
-    def __init__(self, robot_radius=0.2, circular_obstacles=[]):
+    def __init__(self, robot_radius=0.2):
         self.robot_radius = robot_radius
-        self.circular_obstacles = circular_obstacles
 
         self.figure = None
         self.ax = None
@@ -108,16 +107,6 @@ class Visualizer:
                 color=self.cmap(i),
                 markersize=15)
 
-        # PLOT OBSTACLES
-        for hole in self.circular_obstacles:
-            srec = patches.Rectangle(
-                (hole[0]-hole[2], hole[1]-hole[2]),
-                2*hole[2], 2*hole[2],
-                facecolor='red',
-                fill=True,
-                alpha=1)
-            self.ax.add_patch(srec)
-
     def visualize(self, robots, time=None, name=None):
         if not self.figure:
             self.initialize(robots)
@@ -152,4 +141,7 @@ class Visualizer:
         plt.pause(0.0001)
 
         if name:
-            plt.savefig(name, dpi=200)
+            try:
+                plt.savefig(name, dpi=200)
+            except:
+                pass

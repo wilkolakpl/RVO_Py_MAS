@@ -8,56 +8,75 @@ Y = 1
 YAW = 2
 ROBOT_RADIUS = 0.2
 
-circular_obstacles = []
-# circular_obstacles = [[-0.3, 2.5, 0.3], [1.5, 2.5, 0.3], [3.3, 2.5, 0.3], [5.1, 2.5, 0.3]]
+can_cheat = True
+scenario = "head_on"
 
-poses = [[-0.5+1.0*i, 0.0, np.pi/2] for i in range(7)] + \
-        [[-0.5+1.0*i, 5.0, -np.pi/2] for i in range(7)]
+if can_cheat:
+    vel_det_method = "broadcast"
+else:
+    vel_det_method = "inference"
 
-goals = [[5.5-1.0*i, 5.0] for i in range(7)] + \
-        [[5.5-1.0*i, 0.0] for i in range(7)]
+if scenario == "head_on":
+    poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2]]
+    goals = [[2.5, 5.0], [2.5, 0.0]]
 
-# poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2],
-#          [0.0, 2.5, 0], [5.0, 2.5, np.pi]]
+elif scenario == "4_way_crossing":
+    poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2],
+             [0.0, 2.5, 0], [5.0, 2.5, np.pi]]
+    goals = [[2.5, 5.0], [2.5, 0.0], [5.0, 2.5], [0.0, 2.5]]
 
-# goals = [[2.5, 5.0], [2.5, 0.0], [5.0, 2.5], [0.0, 2.5]]
+elif scenario == "moshpit":
+    poses = [[-0.5+1.0*i, 0.0, np.pi/2] for i in range(7)] + \
+            [[-0.5+1.0*i, 5.0, -np.pi/2] for i in range(7)]
 
-# poses = [[2.5, 0.0, np.pi/2], [2.5, 5.0, -np.pi/2]]
+    goals = [[5.5-1.0*i, 5.0] for i in range(7)] + \
+            [[5.5-1.0*i, 0.0] for i in range(7)]
 
-# goals = [[2.5, 5.0], [2.5, 0.0]]
-
-robots = []
-for i, (pose, goal) in enumerate(zip(poses, goals)):
-    if i == 0:
-        mischevious = True
-    else:
-        mischevious = False
-    robots.append(Robot(pose, goal, robot_radius=ROBOT_RADIUS,
-                        mischevious=mischevious))
+elif scenario == "blocking":
+    poses = [[2., 1.8, np.pi/2], [3., 3.2, -np.pi/2],
+             [1.8, 3., 0], [3.2, 2., np.pi], [2.5, 2.5, np.pi]]
+    goals = [[2., 1.8], [3., 3.2], [1.8, 3.], [3.2, 2.], [5., 5.]]
 
 
-circular_obstacles = [[-0.3, 2.5, 0.3],
-                      [1.5, 2.5, 0.3],
-                      [3.3, 2.5, 0.3],
-                      [5.1, 2.5, 0.3]]
-viz = Visualizer(robot_radius=ROBOT_RADIUS, circular_obstacles=[])
+def prepare_robots():
+    robots = []
+    for i, (pose, goal) in enumerate(zip(poses, goals)):
+        if scenario == "blocking":
+            selfish = False
+            blocking = True if i < 4 else False
+        else:
+            selfish = True if i == 0 else False
+            blocking = False
 
-total_time = 15
-step = 0.01
-t = 0
-while t*step < total_time:
+        robots.append(Robot(pose, goal, robot_radius=ROBOT_RADIUS,
+                            selfish=selfish, vel_det_method=vel_det_method, blocking=blocking))
+    return robots
 
-    for robot in robots:
-        robot.update_RVO_velocity(robots, circular_obstacles)
 
-    for robot in robots:
-        robot.update_pose(step)
+def run_loop(robots):
+    viz = Visualizer(robot_radius=ROBOT_RADIUS)
 
-    for robot in robots:
-        robot.exchange_velocities(robots, step)
+    total_time = 15
+    step = 0.01
+    t = 0
+    while t*step < total_time:
 
-    if t % 10 == 0:
-        viz.visualize(robots, time=t*step,
-                      name='data/snap%s.png' % str(t))
+        for robot in robots:
+            robot.update_RVO_velocity(robots)
 
-    t += 1
+        for robot in robots:
+            robot.update_pose(step)
+
+        for robot in robots:
+            robot.exchange_velocities(robots, step)
+
+        if t % 10 == 0:
+            viz.visualize(robots, time=t*step,
+                          name='data/snap%s.png' % str(t))
+
+        t += 1
+
+
+if __name__ == "__main__":
+    robots = prepare_robots()
+    run_loop(robots)
