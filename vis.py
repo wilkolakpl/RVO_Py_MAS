@@ -152,4 +152,7 @@ class Visualizer:
         plt.pause(0.0001)
 
         if name:
-            plt.savefig(name, dpi=200)
+            try:
+                plt.savefig(name, dpi=200)
+            except:
+                pass

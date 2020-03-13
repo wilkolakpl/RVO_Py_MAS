@@ -36,6 +36,30 @@ def is_in_between(theta_right, theta_dif, theta_left):
                 return False
 
 
+def calc_RVO_hole(posA, velA, hole, rob_rad):
+    velB = [0, 0]
+    posB = hole[0:2]
+
+    center = [posA[0]+velB[0], posA[1]+velB[1]]
+
+    dist_BA = calc_distance(posA, posB)
+    theta_BA = atan2(posB[1]-posA[1], posB[0]-posA[0])
+
+    # over-approximation of square to circular
+    OVER_APPROX_C2S = 1.5
+    rad = hole[2]*OVER_APPROX_C2S
+    if (rad+rob_rad) > dist_BA:
+        dist_BA = rad+rob_rad
+
+    theta_BAort = asin((rad+rob_rad)/dist_BA)
+    left_angle = theta_BA + theta_BAort
+    right_angle = theta_BA - theta_BAort
+
+    rad = rad + rob_rad
+
+    return center, left_angle, right_angle, dist_BA, rad
+
+
 def calc_RVO(posA, posB, velA, velB, rob_rad):
     center = [posA[X] + 0.5 * (velB[X]+velA[X]),
               posA[Y] + 0.5 * (velB[Y]+velA[Y])]
@@ -63,7 +87,12 @@ def verify_vel_outside_obstacles(posA, new_velA, RVO_BA_all):
                new_velA[Y] + posA[Y] - center[Y]]
         theta_dif = atan2(dif[Y], dif[X])
         if is_in_between(theta_right, theta_dif, theta_left):
-            return False
+            distance = RVO_BA[3]
+            rad = RVO_BA[4]
+            angle = theta_dif-0.5*(theta_left+theta_right)
+            prop = 0.4
+            if np.linalg.norm(dif)*cos(angle) > prop*(distance - rad/2):
+                return False
     return True
 
 
