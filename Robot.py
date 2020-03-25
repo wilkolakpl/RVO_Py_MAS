@@ -20,7 +20,7 @@ class Robot:
                  theta_max=pi/16,
                  robot_radius=0.2,
                  selfish=False,
-                 blocking=True,
+                 blocking=False,
                  vel_det_method="broadcast"):
 
         self._pose = pose

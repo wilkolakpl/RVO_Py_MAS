@@ -9,7 +9,8 @@ YAW = 2
 ROBOT_RADIUS = 0.2
 
 can_cheat = True
-scenario = "head_on"
+all_honest = True
+scenario = "moshpit"
 
 if can_cheat:
     vel_det_method = "broadcast"
@@ -27,7 +28,7 @@ elif scenario == "4_way_crossing":
 
 elif scenario == "moshpit":
     poses = [[-0.5+1.0*i, 0.0, np.pi/2] for i in range(7)] + \
-            [[-0.5+1.0*i, 5.0, -np.pi/2] for i in range(7)]
+            [[-0.501+1.0*i, 5.0, -np.pi/2] for i in range(7)]
 
     goals = [[5.5-1.0*i, 5.0] for i in range(7)] + \
             [[5.5-1.0*i, 0.0] for i in range(7)]
@@ -41,7 +42,10 @@ elif scenario == "blocking":
 def prepare_robots():
     robots = []
     for i, (pose, goal) in enumerate(zip(poses, goals)):
-        if scenario == "blocking":
+        if all_honest:
+            selfish = False
+            blocking = False
+        elif scenario == "blocking":
             selfish = False
             blocking = True if i < 4 else False
         else:
@@ -55,6 +59,8 @@ def prepare_robots():
 
 def run_loop(robots):
     viz = Visualizer(robot_radius=ROBOT_RADIUS)
+
+    choppy = False
 
     total_time = 15
     step = 0.01
@@ -70,7 +76,9 @@ def run_loop(robots):
         for robot in robots:
             robot.exchange_velocities(robots, step)
 
-        if t % 10 == 0:
+        if t % 10 != 0 and choppy:
+            pass
+        else:
             viz.visualize(robots, time=t*step,
                           name='data/snap%s.png' % str(t))
 
