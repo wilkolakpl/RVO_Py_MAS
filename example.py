@@ -112,8 +112,8 @@ def run_loop(scenario, controller, robots, visualize=True):
             else:
                 viz.visualize(robots, time=t, step=step,
                               total_flow_time=total_flow_time,
-                              red_flow_time=red_flow_time,
-                              name='data/' + controller + '_' + scenario + '/snap')
+                              red_flow_time=red_flow_time)
+                #   name='data/' + controller + '_' + scenario + '/snap')
 
         t += 1
 
@@ -131,8 +131,9 @@ def generate_breakdown():
         robots = prepare_robots("moshpit", "inference", i)
         tft_i, rft_i = run_loop("moshpit", "inference",
                                 robots, visualize=False)
-        print(i, "honest,t,r", tft_h, rft_h, "broadcast,t,r",
-              tft_b, rft_b, "inference,t,r", tft_i, rft_i)
+        print(i, "honest:total", tft_h, "honest:malicious", rft_h,
+              "broadcast:total", tft_b, "broadcast:malicious", rft_b,
+              "inference:total", tft_i, "inference:malicious", rft_i)
 
 
 @click.command()
