@@ -5,10 +5,12 @@ X = 0
 Y = 1
 YAW = 2
 
+PROPORTION_FOR_TRUNCATION = 0.25
+
 
 def calc_distance(pose1, pose2):
     diff = np.array(pose1) - np.array(pose2)
-    return np.linalg.norm(diff) + 0.001
+    return np.linalg.norm(diff)
 
 
 def is_in_between(theta_right, theta_dif, theta_left):
@@ -63,12 +65,16 @@ def verify_vel_outside_obstacles(posA, new_velA, RVO_BA_all):
                new_velA[Y] + posA[Y] - center[Y]]
         theta_dif = atan2(dif[Y], dif[X])
         if is_in_between(theta_right, theta_dif, theta_left):
-            return False
+            distance = RVO_BA[3]
+            rad = RVO_BA[4]
+            angle = theta_dif-0.5*(theta_left+theta_right)
+            if np.linalg.norm(dif)*cos(angle) > PROPORTION_FOR_TRUNCATION*(distance - rad):
+                return False
     return True
 
 
-def compute_distance_to_cone_edge(theta_right, theta_dif,
-                                  theta_left, rad, dist, dif):
+def compute_time_to_collision(theta_right, theta_dif,
+                              theta_left, rad, dist, dif):
     small_theta = abs(theta_dif-0.5*(theta_left+theta_right))
 
     if abs(dist*sin(small_theta)) >= rad:
@@ -80,4 +86,4 @@ def compute_distance_to_cone_edge(theta_right, theta_dif,
     if dist_tg < 0:
         dist_tg = 0
 
-    return dist_tg/calc_distance(dif, [0, 0])
+    return dist_tg/(calc_distance(dif, [0, 0]) + 0.001)

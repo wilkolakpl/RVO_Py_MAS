@@ -6,6 +6,7 @@ import matplotlib.patches as patches
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
 import numpy as np
+from shutil import copyfile
 
 from math import pi as PI
 from math import atan2, sin, cos, sqrt
@@ -33,9 +34,10 @@ class Visualizer:
             return scalar_map.to_rgba(index)
         return map_index_to_rgb_color
 
-    def initialize(self, robots):
+    def initialize(self, robots, total_flow_time, red_flow_time):
         self.figure = plt.figure(figsize=(8, 8))
         plt.show(block=False)
+        plt.rc('font', size=20)
 
         self.ax = self.figure.add_subplot(111)
         self.ax.set_aspect('equal')
@@ -47,8 +49,14 @@ class Visualizer:
 
         self.cmap = self._get_cmap(len(robots))
 
-        self.clock = self.ax.text(2, 5.5, '$t=%.1f s$' % 0,
-                                  fontsize=20, fontweight='bold')
+        self.clock = self.ax.text(2, 5.5, 't=%.2f s' % 0,
+                                  fontsize=20)
+        if total_flow_time:
+            self.tot_flowtime = self.ax.text(-0.5, -0.5, 'total ft=%.4f s' % 0,
+                                             fontsize=20)
+        if red_flow_time:
+            self.red_flowtime = self.ax.text(3, -0.5, 'red ft=%.2f s' % 0,
+                                             fontsize=20)
 
         self.robot_pts = []
         self.history_x = []
@@ -107,9 +115,12 @@ class Visualizer:
                 color=self.cmap(i),
                 markersize=15)
 
-    def visualize(self, robots, time=None, name=None):
+    def visualize(self, robots, time=None, step=0.01, total_flow_time=None,
+                  red_flow_time=None, name=None):
         if not self.figure:
-            self.initialize(robots)
+            self.initialize(robots,
+                            total_flow_time is not None,
+                            red_flow_time is not None)
 
         for i, robot in enumerate(robots):
             # PLOT ROBOTS
@@ -134,14 +145,24 @@ class Visualizer:
             )
 
         # SHOW CURRENT TIME
-        if time:
-            self.clock.set_text('$t=%.1f s$' % time)
+        flow_time = time*step
+        self.clock.set_text('t=%.2f s' % flow_time)
+        if total_flow_time:
+            self.tot_flowtime.set_text(
+                'total ft=%.4f s' % total_flow_time)
+        if red_flow_time:
+            self.red_flowtime.set_text(
+                'red ft=%.2f s' % red_flow_time)
 
         self.figure.canvas.draw_idle()
         plt.pause(0.0001)
 
         if name:
             try:
-                plt.savefig(name, dpi=200)
+                plt.savefig(name + str(time) + '.png', dpi=200)
             except:
-                pass
+                try:
+                    copyfile(name + str(time - 1) + '.png',
+                             name + str(time) + '.png')
+                except:
+                    pass

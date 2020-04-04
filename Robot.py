@@ -2,14 +2,17 @@ import numpy as np
 from math import cos, sin, atan2, pi
 from collections import defaultdict
 from trig import calc_distance, is_in_between, calc_RVO, \
-    verify_vel_outside_obstacles, compute_distance_to_cone_edge
+    verify_vel_outside_obstacles, compute_time_to_collision
 
 
 X = 0
 Y = 1
 YAW = 2
 
-DETECTION_DISTANCE = 3
+DETECTION_DISTANCE = 3.5
+AVOIDANCE_MARGIN = 0.035
+TIME_TO_COLLISION_WEIGHT = 20
+VEL_GRANULARITY = 10.0
 
 
 class Robot:
@@ -21,7 +24,8 @@ class Robot:
                  robot_radius=0.2,
                  selfish=False,
                  blocking=False,
-                 vel_det_method="broadcast"):
+                 vel_det_method="broadcast",
+                 red=False):
 
         self._pose = pose
         self._velocity = velocity
@@ -39,12 +43,18 @@ class Robot:
         self._neighbor_vels = defaultdict(lambda: [0., 0.])
         self._neighbor_poses = defaultdict(lambda: [0., 0.])
 
-    def update_pose(self, step):
+        self.red = red
+
+    def update(self, robots, step):
+        if self.reached_goal():
+            self._velocity = [0, 0]
+        else:
+            self._update_RVO_velocity(robots)
+            self._update_pose(step)
+
+    def _update_pose(self, step):
         self._pose[X] += self._velocity[X] * step
         self._pose[Y] += self._velocity[Y] * step
-
-        if self._reached_goal():
-            return
 
         new_YAW = atan2(self._velocity[Y], self._velocity[X])
         if self._reversing:
@@ -69,7 +79,8 @@ class Robot:
                         other_angle = atan2(towards_other[Y], towards_other[X])
                         towards_goal = self._compute_optimal_V()
                         goal_angle = atan2(towards_goal[Y], towards_goal[X])
-                        angle = 0.5*(other_angle + goal_angle)
+                        angle = atan2(
+                            sin(other_angle) + sin(goal_angle), cos(other_angle) + cos(goal_angle))
                         neighbor._neighbor_vels[self] = [
                             self._v_max * cos(angle), self._v_max * sin(angle)]
                     else:
@@ -87,9 +98,9 @@ class Robot:
 
                     self._neighbor_poses[neighbor] = curr_pose
 
-    def update_RVO_velocity(self, robots):
+    def _update_RVO_velocity(self, robots):
 
-        ROB_RAD = self._radius + 0.1
+        ROB_RAD = self._radius + AVOIDANCE_MARGIN
         RVO_BA_all = []
         for other_robot in robots:
             if self != other_robot and calc_distance(self._pose[:2],
@@ -115,10 +126,10 @@ class Robot:
                                  increments + self._pose[YAW]))
 
         for theta in thetas:
-            for rad in np.arange(max(-norm_curr - norm_v / 4, -norm_v),
-                                 min(norm_curr + norm_v / 4, norm_v), norm_v/10.0):
-                new_v = [rad*cos(theta), rad*sin(theta)]
-                reversing = False if rad > 0 else True
+            for vels in np.arange(max(-norm_curr - norm_v / 4, -norm_v),
+                                  min(norm_curr + norm_v / 4, norm_v), norm_v/VEL_GRANULARITY):
+                new_v = [vels*cos(theta), vels*sin(theta)]
+                reversing = False if vels >= 0 else True
 
                 if verify_vel_outside_obstacles(self._pose[:2], new_v, RVO_BA_all):
                     suitable_V.append((new_v, reversing))
@@ -143,26 +154,23 @@ class Robot:
                     theta_dif = atan2(dif[1], dif[0])
 
                     if is_in_between(theta_right, theta_dif, theta_left):
-                        tc_v = compute_distance_to_cone_edge(theta_right, theta_dif,
-                                                             theta_left, rad, dist, dif)
+                        tc_v = compute_time_to_collision(theta_right, theta_dif,
+                                                         theta_left, rad, dist, dif)
                         tc.append(tc_v)
-                tc_V[tuple(unsuit_v)] = min(tc)+0.001
+                tc_V[tuple(unsuit_v)] = min(tc) + 0.001
             velA_updated = min(unsuitable_V, key=lambda v:
-                               20 / tc_V[tuple(v[0])] +
+                               TIME_TO_COLLISION_WEIGHT / tc_V[tuple(v[0])] +
                                calc_distance(v[0], optimal_V))
         return velA_updated
 
     def _compute_optimal_V(self):
-        if self._reached_goal(0.1):
-            return [0, 0]
-
         dif_x = [self._goal[X]-self._pose[X],
                  self._goal[Y]-self._pose[Y]]
         norm = calc_distance(dif_x, [0, 0])
         return [dif_x[X] * self._v_max / norm,
                 dif_x[Y] * self._v_max / norm]
 
-    def _reached_goal(self, bound=0.5):
+    def reached_goal(self, bound=0.1):
         if calc_distance(self._pose[:2], self._goal) < bound:
             return True
         else:
