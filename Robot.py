@@ -13,6 +13,8 @@ DETECTION_DISTANCE = 3.5
 AVOIDANCE_MARGIN = 0.035
 TIME_TO_COLLISION_WEIGHT = 20
 VEL_GRANULARITY = 10.0
+ANGLE_GRANULARITY = 0.01
+ACC_LIMIT_FRAC = 4
 
 
 class Robot:
@@ -121,13 +123,13 @@ class Robot:
         suitable_V = []
         unsuitable_V = []
 
-        increments = np.arange(0, self._theta_max, 0.01)
+        increments = np.arange(0, self._theta_max, ANGLE_GRANULARITY)
         thetas = np.concatenate((-increments[1:] + self._pose[YAW],
                                  increments + self._pose[YAW]))
 
         for theta in thetas:
-            for vels in np.arange(max(-norm_curr - norm_v / 4, -norm_v),
-                                  min(norm_curr + norm_v / 4, norm_v), norm_v/VEL_GRANULARITY):
+            for vels in np.arange(max(-norm_curr - norm_v / ACC_LIMIT_FRAC, -norm_v),
+                                  min(norm_curr + norm_v / ACC_LIMIT_FRAC, norm_v), norm_v/VEL_GRANULARITY):
                 new_v = [vels*cos(theta), vels*sin(theta)]
                 reversing = False if vels >= 0 else True
 
